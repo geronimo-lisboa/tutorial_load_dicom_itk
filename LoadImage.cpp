@@ -1,9 +1,12 @@
 #include <string>
+#include <cstdlib>
 
 #include <itkImage.h>
 #include <itkImageSeriesReader.h>
 #include <itkGDCMImageIO.h>
 #include <itkGDCMSeriesFileNames.h>
+//NEW - The observer
+#include <itkCommand.h>
 //Typedefs
 typedef itk::Image<short, 3> ImageType;
 typedef itk::ImageSeriesReader<ImageType> ReaderType;
@@ -11,6 +14,28 @@ typedef itk::GDCMImageIO ImageIOType;
 typedef itk::GDCMSeriesFileNames NamesGeneratorType;
 typedef std::vector< std::string >    SeriesIdContainer;
 typedef std::vector< std::string >   FileNamesContainer;
+
+namespace itk
+{
+	class myProgressObserver:public Command
+	{
+	public:
+		//ITK macro - takes care of defining the static New() that all
+		//itk object must have to be compatible with ITK's memory manegement.
+		itkNewMacro(myProgressObserver);
+
+		void Execute(itk::Object *caller, const itk::EventObject & event)
+		{
+			Execute((const itk::Object *)caller, event);
+		}
+
+		void Execute(const itk::Object * object, const itk::EventObject & event)
+		{
+			const itk::ProcessObject  *processObj = dynamic_cast<const itk::ProcessObject*>(object);
+			std::cout << processObj->GetProgress() << std::endl;
+		}
+	};
+}
 
 int main(int argc, char** argv)
 {
@@ -20,10 +45,14 @@ int main(int argc, char** argv)
 	ReaderType::Pointer reader = ReaderType::New();
 	ImageIOType::Pointer imageIOObject = ImageIOType::New();
 	reader->SetImageIO(imageIOObject);
+	//NEW - THE OBSERVER
+	itk::myProgressObserver::Pointer obs = itk::myProgressObserver::New();
 	
 	NamesGeneratorType::Pointer nameGenerator = NamesGeneratorType::New();
+	//NEW - Registers the observer
+	nameGenerator->AddObserver(itk::ProgressEvent(), obs);
 	nameGenerator->SetUseSeriesDetails(true);
-	nameGenerator->SetDirectory("C:\\meus dicoms\\Visible Human Male CT DICOM");
+	nameGenerator->SetDirectory("C:\\Users\\geronimo\\dicom\\Visible Human Male CT DICOM");
 	//This list has all the images in the directory
 	SeriesIdContainer seriesUID = nameGenerator->GetSeriesUIDs();
 	
@@ -32,6 +61,7 @@ int main(int argc, char** argv)
 	reader->SetFileNames(fileNames);
 	try
 	{
+		reader->AddObserver(itk::ProgressEvent(), obs);
 		reader->Update();
 		ImageType::Pointer result = reader->GetOutput();
 		result->Print(std::cout);//My image, loaded.
